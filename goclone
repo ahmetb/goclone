@@ -1,0 +1,52 @@
+#!/bin/bash
+set -e
+
+# That's where the projects get cloned to.
+base="$HOME/workspace"
+
+: ${1?"Pass a github repo URL to this program"}
+repo_url="$1"
+
+# Remove trailing .git from repo_url
+repo_url=${repo_url%.git}
+
+# Remove http(s) prefix
+pkg=$(echo "$repo_url" | sed 's,https*://,,')
+
+repo_name=$(basename "$repo_url")
+
+git_url="$repo_url"
+[[ $git_url == *.git ]] || git_url+=.git
+
+gopath_base="$base/gopath-$repo_name"
+repo_dir="$gopath_base/src/$pkg"
+
+if [[ -d "$repo_dir" ]]; then
+	echo "Repository already exists at ${repo_dir}." > /dev/stderr
+	echo "Not overwriting the existing clone..." > /dev/stderr 
+else
+	clone_cmd="git clone -q ${git_url} ${repo_dir}"
+	echo "Running: $clone_cmd" > /dev/stderr
+	$clone_cmd
+	echo "Cloned $repo_name!" > /dev/stderr
+fi
+
+gopath="$gopath_base"
+
+if [[ -d "${repo_dir}/Godeps" ]]; then
+	gopath="${repo_dir}/Godeps/_workspace:${gopath}"
+fi
+
+echo
+echo "Run the following to set \$GOPATH:" > /dev/stderr
+echo "    cd $repo_dir;"
+if [[ "$(go version)" == *"go1.5"* ]]; then
+    if [[ -d "${repo_dir}/vendor" ]]; then
+	echo "    export GOPATH=${gopath_base}"
+	echo "    export GO15VENDOREXPERIMENT=1"
+    else
+        echo "    export GOPATH=${gopath}"
+    fi
+else
+    echo "    export GOPATH=${gopath}"
+fi
