@@ -28,4 +28,4 @@ Copy `goclone` script to your `/usr/local/bin/goclone` and `chmod +x` it.
 
 ## Author
 
-Ahmet Alp Balkan (@ahmetalpbalkan)
+Ahmet Alp Balkan [@ahmetalpbalkan](https://github.com/ahmetalpbalkan)
