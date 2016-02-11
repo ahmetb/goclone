@@ -39,14 +39,13 @@ else
 	echo "Running: $clone_cmd" > /dev/stderr
 	$clone_cmd
 	echo "Cloned $repo_name!" > /dev/stderr
+	# Add remote 'my'
+	(
+		cd "$repo_dir"
+		echo "Adding git remote 'my' pointing to your fork." > /dev/stderr
+		git remote add "my" "git@github.com:${gh_user}/${repo_name}"
+	)
 fi
-
-
-# Add remote 'my'
-(
-	cd "$repo_dir"
-	git remote add "my" "git@github.com:${gh_user}/${repo_name}"
-)
 
 gopath="$gopath_base"
 
