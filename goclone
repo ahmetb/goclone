@@ -28,7 +28,7 @@ else
 	printf 'Your GitHub username: ' > /dev/stderr
 	read gh_user
 	echo "$gh_user" > "$user_file"
-	echo "Username saved."
+	echo "Username saved." > /dev/stderr
 fi
 
 if [[ -d "$repo_dir" ]]; then
