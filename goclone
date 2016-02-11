@@ -21,6 +21,16 @@ git_url="$repo_url"
 gopath_base="$base/gopath-$repo_name"
 repo_dir="$gopath_base/src/$pkg"
 
+user_file="$HOME/.github_username"
+if [[ -f "$user_file" ]]; then
+	gh_user="$(cat "$user_file")"
+else
+	printf 'Your GitHub username: ' > /dev/stderr
+	read gh_user
+	echo "$gh_user" > "$user_file"
+	echo "Username saved."
+fi
+
 if [[ -d "$repo_dir" ]]; then
 	echo "Repository already exists at ${repo_dir}." > /dev/stderr
 	echo "Not overwriting the existing clone..." > /dev/stderr 
@@ -30,6 +40,13 @@ else
 	$clone_cmd
 	echo "Cloned $repo_name!" > /dev/stderr
 fi
+
+
+# Add remote 'my'
+(
+	cd "$repo_dir"
+	git remote add "my" "git@github.com:${gh_user}/${repo_name}"
+)
 
 gopath="$gopath_base"
 
