@@ -56,13 +56,9 @@ fi
 echo
 echo "Run the following to set \$GOPATH:" > /dev/stderr
 echo "    cd $repo_dir;"
-if [[ "$(go version)" == *"go1.5"* ]]; then
-    if [[ -d "${repo_dir}/vendor" ]]; then
+if [[ -d "${repo_dir}/vendor" ]]; then
 	echo "    export GOPATH=${gopath_base}"
 	echo "    export GO15VENDOREXPERIMENT=1"
-    else
-        echo "    export GOPATH=${gopath}"
-    fi
 else
-    echo "    export GOPATH=${gopath}"
+	echo "    export GOPATH=${gopath}"
 fi
