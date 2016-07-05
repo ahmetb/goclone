@@ -22,6 +22,10 @@ or more conveniently the following will put you to the project folder and set GO
 $ eval $(goclone https://github.com/mesosphere/mesos-dns)
 ```
 
+If you put your GitHub username to the `$HOME/.github_username` file, it also adds a
+git remote named `my` pointing to your GitHub fork of the repository as well, so that you
+can just `git push my ...` and start sending Pull Requests.
+
 ### Installation
 
 Copy `goclone` script to your `/usr/local/bin/goclone` and `chmod +x` it.
