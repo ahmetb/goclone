@@ -5,13 +5,16 @@ set -e
 base="$HOME/workspace"
 
 : ${1?"Pass a github repo URL to this program"}
+orig_url="$1"
 repo_url="$1"
+
+# convert SSH format to HTTPS url
+repo_url=$(echo "$repo_url" | sed 's,git@github.com:,https://github.com/,')
 
 # Remove trailing .git from repo_url
 repo_url=${repo_url%.git}
 
-# Remove http(s) prefix
-pkg=$(echo "$repo_url" | sed 's,https*://,,')
+pkg=$(echo "$repo_url" | sed 's,https*://,,') # Remove http(s) prefix
 
 repo_name=$(basename "$repo_url")
 
@@ -35,7 +38,7 @@ if [[ -d "$repo_dir" ]]; then
 	echo "Repository already exists at ${repo_dir}." > /dev/stderr
 	echo "Not overwriting the existing clone..." > /dev/stderr 
 else
-	clone_cmd="git clone -q ${git_url} ${repo_dir}"
+	clone_cmd="git clone -q ${orig_url} ${repo_dir}"
 	echo "Running: $clone_cmd" > /dev/stderr
 	$clone_cmd
 	echo "Cloned $repo_name!" > /dev/stderr
