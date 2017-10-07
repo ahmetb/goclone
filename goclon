@@ -1,0 +1,102 @@
+#!/bin/bash
+set -e
+
+: ${1?"Usage $0 [PATH]\
+PATH must be one of the following formats: \
+  - user/repo (for github) \
+  - http(s)://github.com/user/repo(.git) \
+  - git@github.com:user/repo.git\
+  - k8s.io/client-go (go-get format)"}
+
+WORKSPACE="${WORKSPACE:-"${HOME}/workspace"}"
+
+src="$1"
+user=
+repo=
+github=
+github_ssh=
+go_get_url=
+
+# is github_user/github_repo
+if [[ "$src" =~ ^([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+
+# is git@github.com:user/repo.git
+elif [[ "$src" =~ ^git@github\.com:([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\.git$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+    github_ssh="true"
+
+# is http(s)://github.com/user/repo(.git)
+elif [[ "$src" =~ ^https?://github\.com/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)(\.git)?$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+
+# is go-get path (e.g. github.com/user/repo/pkg/subpkg, k8s.io/kubernetes, labix.org/mgo.v1)
+elif [[ "$src" =~ ^([a-zA-Z0-9_\-]+[\.a-zA-Z0-9_\-]+)+(\/[A-Za-z0-9\._\-]+)+$ ]]; then
+    go_get_url="$src"
+    repo="${src//[\.\/]/-}" # replace '/' with '-'
+else
+    echo "Cannot resolve the repository name.">&2
+    exit 1
+fi
+
+project="$WORKSPACE/gopath-${repo}"
+clone_path=
+if [[ "$github" == "true" ]]; then
+    clone_path="$project/src/github.com/${user}/${repo}"
+else
+    clone_path="$project/src/${go_get_url}"
+fi
+
+# TODO(ahmetb) if $GITHUB_USERNAME or ~/.github_username, add a remote called
+# "my" pointing to user's fork in case of github.
+
+# TODO(ahmetb) make sure clone errors surface as exit code in the script
+
+if [[ ! -d "${clone_path}" ]]; then
+    if [[ "$github" == "true" ]]; then
+        if [[ -x "$(command -v hub)" && -z "${FORCE_GIT}" ]]; then
+            # use hub(1)
+            (
+                set -ex
+                hub clone -q "${user}/${repo}" "${clone_path}"
+            )
+        else
+            # use git(1)
+            git_url=
+            if [[ "$github_ssh" == "true" ]]; then
+                git_url="$src"
+            else
+                git_url="$src"
+                [[ "$git_url" == *.git ]] || git_url+=".git"
+            fi
+            (
+                set -ex
+                git clone -q "${git_url}" "${clone_path}"
+            )
+        fi
+    else
+        (
+            export GOPATH="${project}"
+            set -ex
+            go get -d "${go_get_url}"
+        )
+    fi
+fi
+
+echo "    export GOPATH=\"${project}\";"
+echo "    cd \"${clone_path}\";"
+
+# if args contain '--'
+#   exec $SHELL -c ${args after --,#}
+# else
+#   (
+#     export GOPATH=$project
+#     cd $clone_dir
+#     exec $SHELL
+#   )
