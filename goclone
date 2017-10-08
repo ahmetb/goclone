@@ -1,67 +1,170 @@
 #!/bin/bash
 set -e
 
-# That's where the projects get cloned to.
-base="$HOME/workspace"
+usage() {
+cat<<EOF
+Usage:
+  $0 [-q | -h] REPO [-- CMD ARGS...]
 
-: ${1?"Pass a github repo URL to this program"}
-orig_url="$1"
-repo_url="$1"
+Options:
+  -q     Print eval-friendly commands to configure the current shell.
+  -h     Show this message.
 
-# convert SSH format to HTTPS url
-repo_url=$(echo "$repo_url" | sed 's,git@github.com:,https://github.com/,')
+Arguments:
+  REPO   Specifies GitHub repository or another resource for the Go package to
+         be downloaded. Allowed formats:
+           * user/repo                            (github-only)
+           * https://github.com/user/repo(.git)   (github-only)
+           * git@github.com:user/repo.git         (github-only)
+           * labix.org/mgo.1                      (go-get path)
 
-# Remove trailing .git from repo_url
-repo_url=${repo_url%.git}
+  [-- CMD ARGS]
+        Specifies the command to be executed in the package's environment. If
+        omitted, an interactive shell will be started.
 
-pkg=$(echo "$repo_url" | sed 's,https*://,,') # Remove http(s) prefix
+Examples:
+  $ goclone ahmetb/govvv
+  $ eval \$(goclone -q k8s.io/kubernetes)
+  $ goclone https://github.com/pkg/errors -- cat LICENSE
+EOF
+}
 
-repo_name=$(basename "$repo_url")
+WORKSPACE="${WORKSPACE:-"${HOME}/workspace"}"
 
-git_url="$repo_url"
-[[ $git_url == *.git ]] || git_url+=.git
+quiet=
+user=
+repo=
+github=
+github_ssh=
+go_get_url=
 
-gopath_base="$base/gopath-$repo_name"
-repo_dir="$gopath_base/src/$pkg"
+# parse command line arguments
+while getopts qh opt; do
+    case "${opt}" in
+		q)
+			quiet="true"
+			;;
+		h)
+			usage; exit 1;;
+		?)
+			echo "Run with \"-h\" for help." >&2
+			exit 1
+	esac
+done
+shift $((OPTIND - 1))
 
-user_file="$HOME/.github_username"
-if [[ -f "$user_file" ]]; then
-	gh_user="$(cat "$user_file")"
-else
-	printf 'Your GitHub username: ' > /dev/stderr
-	read gh_user
-	echo "$gh_user" > "$user_file"
-	echo "Username saved." > /dev/stderr
+# at least one positional argument required
+if [[ $# -lt 1 ]]; then
+	echo "$0: missing argument REPO" >&2
+	exit 1
 fi
 
-if [[ -d "$repo_dir" ]]; then
-	echo "Repository already exists at ${repo_dir}." > /dev/stderr
-	echo "Not overwriting the existing clone..." > /dev/stderr 
+# first positional argument is the repository
+src="$1"
+shift
+
+# parse the remainder of arguments, preserve them to pass it to the new shell
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--)
+		shift;break;;
+	*)
+		echo "$0: unrecognized extra positional argument: $1" >&2
+		exit 1
+	esac
+done
+exeargs=$*
+
+# is github_user/github_repo
+if [[ "$src" =~ ^([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+
+# is git@github.com:user/repo.git
+elif [[ "$src" =~ ^git@github\.com:([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\.git$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+    github_ssh="true"
+
+# is http(s)://github.com/user/repo(.git)
+elif [[ "$src" =~ ^https?://github\.com/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)(\.git)?$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    repo="${BASH_REMATCH[2]}"
+    github="true"
+
+# is go-get path (e.g. github.com/user/repo/pkg/subpkg, k8s.io/kubernetes, labix.org/mgo.v1)
+elif [[ "$src" =~ ^([a-zA-Z0-9_\-]+[\.a-zA-Z0-9_\-]+)+(\/[A-Za-z0-9\._\-]+)+$ ]]; then
+    go_get_url="$src"
+    repo="${src//[\.\/]/-}" # replace '/' with '-'
 else
-	clone_cmd="git clone -q ${orig_url} ${repo_dir}"
-	echo "Running: $clone_cmd" > /dev/stderr
-	$clone_cmd
-	echo "Cloned $repo_name!" > /dev/stderr
-	# Add remote 'my'
+    echo "$0: invalid REPO format \"${src}\".">&2
+    exit 1
+fi
+
+project="$WORKSPACE/gopath-${repo}"
+clone_path=
+if [[ "$github" == "true" ]]; then
+    clone_path="$project/src/github.com/${user}/${repo}"
+else
+    clone_path="$project/src/${go_get_url}"
+fi
+
+# TODO(ahmetb) if $GITHUB_USERNAME or ~/.github_username, add a remote called
+# "my" pointing to user's fork in case of github.
+
+# TODO(ahmetb) make sure clone errors surface as exit code in the script
+
+# clone the repo if necessary
+if [[ ! -d "${clone_path}" ]]; then
+    if [[ "$github" == "true" ]]; then
+        if [[ -x "$(command -v hub)" && -z "${FORCE_GIT}" ]]; then
+            # use hub(1)
+            (
+                set -ex
+                hub clone -q "${user}/${repo}" "${clone_path}"
+            )
+        else
+            # use git(1)
+            git_url=
+            if [[ "$github_ssh" == "true" ]]; then
+                git_url="$src"
+            else
+                git_url="$src"
+                [[ "$git_url" == *.git ]] || git_url+=".git"
+            fi
+            (
+                set -ex
+                git clone -q "${git_url}" "${clone_path}"
+            )
+        fi
+    else
+        (
+            set -ex
+            env  GOPATH="${project}" go get -d "${go_get_url}"
+        )
+    fi
+fi
+
+if [[ "$quiet" == "true" ]]; then
+	# print commands to prepare env
+	echo "    export GOPATH=\"${project}\";"
+	echo "    cd \"${clone_path}\";"
+else
+	if [[ -n "$exeargs" ]]; then
+	# run command in env
 	(
-		cd "$repo_dir"
-		echo "Adding git remote 'my' pointing to your fork." > /dev/stderr
-		git remote add "my" "git@github.com:${gh_user}/${repo_name}"
+		cd "${clone_path}"
+		env GOPATH="${project}" $SHELL -c "${exeargs[@]}"
 	)
-fi
-
-gopath="$gopath_base"
-
-if [[ -d "${repo_dir}/Godeps" ]]; then
-	gopath="${repo_dir}/Godeps/_workspace:${gopath}"
-fi
-
-echo
-echo "Run the following to set \$GOPATH:" > /dev/stderr
-echo "    cd $repo_dir;"
-if [[ -d "${repo_dir}/vendor" ]]; then
-	echo "    export GOPATH=${gopath_base}"
-	echo "    export GO15VENDOREXPERIMENT=1"
-else
-	echo "    export GOPATH=${gopath}"
+	else
+	# start an interactive shell with env
+	(
+		cd "${clone_path}"
+		echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}.$(tput sgr0)" >&2
+		env GOPATH="${project}" $SHELL || true
+		echo -e "\033[32mgoclone: Shell exited.$(tput sgr0)" >&2
+	)
+	fi
 fi
