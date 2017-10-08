@@ -1,35 +1,46 @@
-# `goclone`
+# `goclone(1)`
 
-This tool helps you clone GitHub repositories and set $GOPATH correctly
-with Godeps paths etc.
+**goclone** is a tool to clone Go repositories from GitHub and other sources to
+a new `$GOPATH` and start working on it right away.
 
-It determines whether the repo uses Godeps smartly.
+For example, running `goclone sirupsen/logrus` clones the
+[logrus](https://github.com/sirupsen/logrus) repository to a clean `$GOPATH` at
+`~/workspace/gopath-logrus` and starts a new shell session for you to hack on
+it.
 
-### Usage
-```
-$ goclone https://github.com/mesosphere/mesos-dns
-Running: git clone -q https://github.com/mesosphere/mesos-dns.git /Users/alp/workspace/gopath-mesos-dns/src/github.com/mesosphere/mesos-dns
-Cloned mesos-dns!
+This way you stop using a global `$GOPATH` that turns into a pile of garbage
+over time. Now you can easily download a Go project and its dependencies, and
+remove it all very easily
 
-Run the following to set $GOPATH:
-    cd /Users/alp/workspace/gopath-mesos-dns/src/github.com/mesosphere/mesos-dns
-    export GOPATH=/Users/alp/workspace/gopath-mesos-dns/src/github.com/mesosphere/mesos-dns/Godeps/_workspace:/Users/alp/workspace/gopath-mesos-dns
-```
+**goclone** supports private repositories on GitHub, using the
+[hub](https://hub.github.com/) tool.
 
-or more conveniently the following will put you to the project folder and set GOPATH even though the project was cloned once before:
+### Examples
 
-```
-$ eval $(goclone https://github.com/mesosphere/mesos-dns)
-```
+Clone `ahmetb/govvv` from GitHub, and start a new shell:
 
-If you put your GitHub username to the `$HOME/.github_username` file, it also adds a
-git remote named `my` pointing to your GitHub fork of the repository as well, so that you
-can just `git push my ...` and start sending Pull Requests.
+    $ goclone ahmetb/govvv
+
+Clone `k8s.io/kubernetes` and run `cat LICENSE` in its directory.
+
+    $ goclone k8s.io/kubernetes -- cat LICENSE
+
+Clone `https://github.com/rakyll/gops` and set GOPATH/PWD in the current shell:
+
+    $ eval $(goclone -q https://github.com/rakyll/gops)
 
 ### Installation
 
-Copy `goclone` script to your `/usr/local/bin/goclone` and `chmod +x` it.
+Download [`goclone`](./goclone) file to your `/usr/local/bin` and `chmod +x` it. 
 
-## Author
+One-line install script for macOS/Linux:
 
-Ahmet Alp Balkan [@ahmetalpbalkan](https://github.com/ahmetalpbalkan)
+```sh
+sudo wget -qO/usr/local/bin/goclone \
+      https://rawgit.com/ahmetb/goclone/master/goclone && \
+    sudo chmod +x /usr/local/bin/goclone
+```
+
+-----
+
+Brought you by [@ahmetb](https://github.com/ahmetb).
