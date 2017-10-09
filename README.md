@@ -30,6 +30,7 @@ Clone `https://github.com/rakyll/gops` and set GOPATH/PWD in the current shell:
     - `git@github.com:user/repo.git`: GitHub SSH format (works w/ private repos)
     - `https://github.com/rakyll/hey`: GitHub URL, pasted from web browser
     - `gopkg.in/mgo.v2`: Go import path, does not have to be GitHub
+- Spawns a new shell with GOPATH/PWD correctly set.
 
 ## Installation
 
@@ -44,4 +45,4 @@ sudo wget -qO/usr/local/bin/goclone \
 ```
 -----
 
-Brought you by [@ahmetb](https://github.com/ahmetb).
+Brought to you by [@ahmetb](https://github.com/ahmetb).
