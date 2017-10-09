@@ -162,7 +162,7 @@ else
 	# start an interactive shell with env
 	(
 		cd "${clone_path}"
-		echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}.$(tput sgr0)" >&2
+		echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}$(tput sgr0)" >&2
 		env GOPATH="${project}" $SHELL || true
 		echo -e "\033[32mgoclone: Shell exited.$(tput sgr0)" >&2
 	)
