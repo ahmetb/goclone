@@ -31,10 +31,12 @@ Clone `https://github.com/rakyll/gops` and set GOPATH/PWD in the current shell:
     - `https://github.com/rakyll/hey`: GitHub URL, pasted from web browser
     - `gopkg.in/mgo.v2`: Go import path, does not have to be GitHub
 - Spawns a new shell with GOPATH/PWD correctly set.
+- `$GOPATH/bin` value is provided in the new shell through the `$EXTRA_PATH`
+  variable. You can use this to add your binaries to your `$PATH` automatically.
 
 ## Installation
 
-Download [`goclone`](./goclone) file to your `/usr/local/bin` and `chmod +x` it. 
+Download [`goclone`](./goclone) file to your `/usr/local/bin` and `chmod +x` it.
 
 One-line install script for macOS/Linux:
 
@@ -43,6 +45,13 @@ sudo wget -qO/usr/local/bin/goclone \
       https://rawgit.com/ahmetb/goclone/master/goclone && \
     sudo chmod +x /usr/local/bin/goclone
 ```
+
+ **Optional:** goclone provides an `$EXTRA_PATH` env var, pointing to the
+`$GOPATH/bin`. Use the following in your .bashrc/.zshrc file to add it to your
+`$PATH` when the goclone shell starts:
+
+    if [ -n "$EXTRA_PATH" ]; then export PATH="$EXTRA_PATH:$PATH"; fi
+
 -----
 
 Brought to you by [@ahmetb](https://github.com/ahmetb).
