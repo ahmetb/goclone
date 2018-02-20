@@ -157,14 +157,14 @@ else
 	# run command in env
 	(
 		cd "${clone_path}"
-		env GOPATH="${project}" EXTRA_PATH="${project}/bin" $SHELL -c "${exeargs[@]}"
+		env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL -c "${exeargs[@]}"
 	)
 	else
 	# start an interactive shell with env
 	(
 		cd "${clone_path}"
 		echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}$(tput sgr0)" >&2
-		env GOPATH="${project}" EXTRA_PATH="${project}/bin" $SHELL || true
+		env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL || true
 		echo -e "\033[32mgoclone: Shell exited.$(tput sgr0)" >&2
 	)
 	fi
