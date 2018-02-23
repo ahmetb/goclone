@@ -26,6 +26,11 @@ Examples:
   $ goclone ahmetb/govvv
   $ eval \$(goclone -q k8s.io/kubernetes)
   $ goclone https://github.com/pkg/errors -- cat LICENSE
+
+  # ensures k8s.io/kubernetes is cloned at normal location in workspace,
+  # then (on first run) creates a branch-specific workspace directory, with
+  # a git worktree for the corresponding branch setup in the usual relative GOPATH location.
+  $ goclone k8s.io/kubernetes@feature1
 EOF
 }
 
@@ -41,22 +46,22 @@ go_get_url=
 # parse command line arguments
 while getopts qh opt; do
     case "${opt}" in
-		q)
-			quiet="true"
-			;;
-		h)
-			usage; exit 1;;
-		?)
-			echo "Run with \"-h\" for help." >&2
-			exit 1
-	esac
+        q)
+            quiet="true"
+            ;;
+        h)
+            usage; exit 1;;
+        ?)
+            echo "Run with \"-h\" for help." >&2
+            exit 1
+    esac
 done
 shift $((OPTIND - 1))
 
 # at least one positional argument required
 if [[ $# -lt 1 ]]; then
-	echo "$0: missing argument REPO" >&2
-	exit 1
+    echo "$0: missing argument REPO" >&2
+    exit 1
 fi
 
 # first positional argument is the repository
@@ -65,37 +70,46 @@ shift
 
 # parse the remainder of arguments, preserve them to pass it to the new shell
 while [[ $# -gt 0 ]]; do
-	case "$1" in
-	--)
-		shift;break;;
-	*)
-		echo "$0: unrecognized extra positional argument: $1" >&2
-		exit 1
-	esac
+    case "$1" in
+    --)
+        shift;break;;
+    *)
+        echo "$0: unrecognized extra positional argument: $1" >&2
+        exit 1
+    esac
 done
 exeargs=$*
 
-# is github_user/github_repo
-if [[ "$src" =~ ^([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)$ ]]; then
+# is githubUser/github_repo
+if [[ "$src" =~ ^([A-Za-z0-9-]+)\/([A-Za-z0-9_-]+)(\@(.*))?$ ]]; then
     user="${BASH_REMATCH[1]}"
     repo="${BASH_REMATCH[2]}"
+    branch_name="${BASH_REMATCH[4]}"
+    [[ ! -z "${BASH_REMATCH[4]}" ]] && src="${src:0:$(( ${#src} - ${#BASH_REMATCH[3]} ))}"
     github="true"
+    hub_syntax="true"
 
 # is git@github.com:user/repo.git
-elif [[ "$src" =~ ^git@github\.com:([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)\.git$ ]]; then
+elif [[ "$src" =~ ^git@github\.com:([A-Za-z0-9-]+)\/([A-Za-z0-9_-]+)\.git(\@(.*))?$ ]]; then
     user="${BASH_REMATCH[1]}"
     repo="${BASH_REMATCH[2]}"
+    branch_name="${BASH_REMATCH[4]}"
+    [[ ! -z "${BASH_REMATCH[4]}" ]] && src="${src:0:$(( ${#src} - ${#BASH_REMATCH[3]} ))}"
     github="true"
     github_ssh="true"
 
 # is http(s)://github.com/user/repo(.git)
-elif [[ "$src" =~ ^https?://github\.com/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+)(\.git)?$ ]]; then
+elif [[ "$src" =~ ^https?://github\.com/([A-Za-z0-9-]+)\/([A-Za-z0-9_-]+)(\.git)?(\@(.*))?$ ]]; then
     user="${BASH_REMATCH[1]}"
     repo="${BASH_REMATCH[2]}"
+    branch_name="${BASH_REMATCH[5]}"
+    [[ ! -z "${BASH_REMATCH[4]}" ]] && src="${src:0:$(( ${#src} - ${#BASH_REMATCH[4]} ))}"
     github="true"
 
 # is go-get path (e.g. github.com/user/repo/pkg/subpkg, k8s.io/kubernetes, labix.org/mgo.v1)
-elif [[ "$src" =~ ^([a-zA-Z0-9_\-]+[\.a-zA-Z0-9_\-]+)+(\/[A-Za-z0-9\._\-]+)+$ ]]; then
+elif [[ "$src" =~ ^([a-zA-Z0-9_\-]+[\.a-zA-Z0-9_\-]+)+(\/[A-Za-z0-9\._\-]+)+(\@(.*))?$ ]]; then
+    branch_name="${BASH_REMATCH[4]}"
+    [[ ! -z "${BASH_REMATCH[4]}" ]] && src="${src:0:$(( ${#src} - ${#BASH_REMATCH[3]} ))}"
     go_get_url="$src"
     repo="${src//[\.\/]/-}" # replace '/' with '-'
 else
@@ -103,12 +117,16 @@ else
     exit 1
 fi
 
+# project is the primary clone location (use of @branch feature assumes git...)
 project="$WORKSPACE/gopath-${repo}"
+branch_project="${project}${branch_name:+@${branch_name}}"
 clone_path=
 if [[ "$github" == "true" ]]; then
     clone_path="$project/src/github.com/${user}/${repo}"
+    branch_clone_path="$branch_project/src/github.com/${user}/${repo}"
 else
     clone_path="$project/src/${go_get_url}"
+    branch_clone_path="$branch_project/src/${go_get_url}"
 fi
 
 # TODO(ahmetb) if $GITHUB_USERNAME or ~/.github_username, add a remote called
@@ -126,14 +144,12 @@ if [[ ! -d "${clone_path}" ]]; then
                 hub clone -q "${user}/${repo}" "${clone_path}"
             )
         else
-            # use git(1)
-            git_url=
-            if [[ "$github_ssh" == "true" ]]; then
-                git_url="$src"
-            else
-                git_url="$src"
-                [[ "$git_url" == *.git ]] || git_url+=".git"
+            git_url="$src"
+            if "$hub_syntax" == "true" ]]; then
+                git_url="https://github.com/${user}/${repo}"
             fi
+            [[ "$git_url" == *.git ]] || git_url+=".git"
+
             (
                 set -ex
                 git clone -q "${git_url}" "${clone_path}"
@@ -147,25 +163,36 @@ if [[ ! -d "${clone_path}" ]]; then
     fi
 fi
 
+if [[ ! -z "${branch_name:-}" ]]; then
+    if [[ ! -d "${branch_project}" ]]; then
+        (
+            cd "${clone_path}"
+            git worktree add "${branch_clone_path}" "${branch_name}"
+        )
+    fi
+    project="${branch_project}"
+    clone_path="${branch_clone_path}"
+fi
+
 if [[ "$quiet" == "true" ]]; then
-	# print commands to prepare env
-	echo "    export GOPATH=\"${project}\";"
-	echo "    export PATH=\"${project}/bin:\${PATH}\";"
-	echo "    cd \"${clone_path}\";"
+    # print commands to prepare env
+    echo "    export GOPATH=\"${project}\";"
+    echo "    export PATH=\"${project}/bin:\${PATH}\";"
+    echo "    cd \"${clone_path}\";"
 else
-	if [[ -n "$exeargs" ]]; then
-	# run command in env
-	(
-		cd "${clone_path}"
-		env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL -c "${exeargs[@]}"
-	)
-	else
-	# start an interactive shell with env
-	(
-		cd "${clone_path}"
-		echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}$(tput sgr0)" >&2
-		env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL || true
-		echo -e "\033[32mgoclone: Shell exited.$(tput sgr0)" >&2
-	)
-	fi
+    if [[ -n "$exeargs" ]]; then
+    # run command in env
+    (
+        cd "${clone_path}"
+        env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL -c "${exeargs[@]}"
+    )
+    else
+    # start an interactive shell with env
+    (
+        cd "${clone_path}"
+        echo -e "\033[32mgoclone: Starting a new shell in GOPATH=${project}$(tput sgr0)" >&2
+        env GOPATH="${project}" PATH="${project}/bin:${PATH}" $SHELL || true
+        echo -e "\033[32mgoclone: Shell exited.$(tput sgr0)" >&2
+    )
+    fi
 fi
